@@ -1,4 +1,6 @@
-import nodemailer from 'nodemailer';
+import sgMail from '@sendgrid/mail';
+
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 import { User } from '../models/User.model.js';
 import { generateToken } from '../utils/generateToken.js';
 
@@ -26,16 +28,8 @@ export const signupService = async (data) => {
         expiresAt: Date.now() + 10 * 60 * 100 // valid for short time
     };
 
-    const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS
-        }
-    });
-
     const mailOptions = {
-        from: process.env.EMAIL_USER,
+        from: process.env.SENDGRID_SENDER_EMAIL,
         to: email,
         subject: 'Sign Up Confirmation',
         html: `<div style="font-family: Arial, sans-serif; background-color: #f2f2f2; padding: 20px;">
@@ -52,7 +46,7 @@ export const signupService = async (data) => {
                 </div>`
     };
 
-    await transporter.sendMail(mailOptions);
+    await sgMail.send(mailOptions);
 };
 
 export const validateOtpService = async (email, Enteredotp) => {
@@ -114,16 +108,8 @@ export const forgotPasswordOTPService = async (email) => {
         expiresAt: Date.now() + 10 * 60 * 1000 // 10 mins
     };
 
-    const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS
-        }
-    });
-
     const mailOptions = {
-        from: process.env.EMAIL_USER,
+        from: process.env.SENDGRID_SENDER_EMAIL,
         to: email,
         subject: 'Password Recovery OTP - Chatvia',
         html: `<div style="font-family: Arial, sans-serif; background-color: #f2f2f2; padding: 20px;">
@@ -136,7 +122,7 @@ export const forgotPasswordOTPService = async (email) => {
                </div>`
     };
 
-    await transporter.sendMail(mailOptions);
+    await sgMail.send(mailOptions);
 };
 
 export const verifyForgotPasswordOTPService = async (email, Enteredotp) => {
@@ -158,16 +144,8 @@ export const verifyForgotPasswordOTPService = async (email, Enteredotp) => {
         throw new Error("User not found");
     }
 
-    const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS
-        }
-    });
-
     const mailOptions = {
-        from: process.env.EMAIL_USER,
+        from: process.env.SENDGRID_SENDER_EMAIL,
         to: email,
         subject: 'Your Password - Chatvia',
         html: `<div style="font-family: Arial, sans-serif; background-color: #f2f2f2; padding: 20px;">
@@ -182,6 +160,6 @@ export const verifyForgotPasswordOTPService = async (email, Enteredotp) => {
                </div>`
     };
 
-    await transporter.sendMail(mailOptions);
+    await sgMail.send(mailOptions);
     delete forgotPasswordOtpStore[email];
 };
