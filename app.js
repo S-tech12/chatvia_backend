@@ -12,9 +12,16 @@ import callRoutes from './routes/call.routes.js';
 
 const app = express();
 
+const allowedOrigins = [
+    "http://localhost:5500",
+    "https://chatvia-frontend-phi.vercel.app",
+    "https://chatvia-frontend-git-main-smit-pipalavas-projects.vercel.app",
+    "https://chatvia-frontend-imp52da4u-smit-pipalavas-projects.vercel.app"
+]
+
 // Middlewares
 app.use(cors({
-    origin: true,
+    origin: allowedOrigins,
     credentials: true
 }));
 app.use(cookieParser());
