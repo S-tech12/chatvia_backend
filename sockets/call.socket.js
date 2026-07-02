@@ -6,7 +6,8 @@ export const setupCallSockets = (io) => {
 
         // 1. Initiate a Call
         socket.on('call-user', async ({ callerId, receiverId, callType }) => {
-            console.log(`[CALL SIGNAL] call-user: Caller ${callerId} -> Receiver ${receiverId} (${callType})`);
+            const callerIdToCheck = callerId || (socket.user && socket.user.id);
+            console.log(`[CALL SIGNAL] call-user: Caller ${callerIdToCheck} -> Receiver ${receiverId} (${callType})`);
             try {
                 // Check if receiver is online
                 const receiverSocketId = getOnlineUserSocketId(receiverId);
@@ -17,17 +18,32 @@ export const setupCallSockets = (io) => {
                     return;
                 }
 
-                if (isUserBusy(receiverId)) {
-                    console.log(`[CALL SIGNAL] Receiver ${receiverId} is currently busy.`);
+                // Check if either caller or receiver is busy to prevent race conditions / double calls
+                if (isUserBusy(callerIdToCheck) || isUserBusy(receiverId)) {
+                    console.log(`[CALL SIGNAL] Caller ${callerIdToCheck} or receiver ${receiverId} is busy.`);
                     socket.emit('user-busy', { receiverId });
                     return;
                 }
 
+                // Mark both users as busy synchronously with a pending call status
+                setActiveCall(callerIdToCheck, { callId: 'pending', otherUserId: receiverId });
+                setActiveCall(receiverId, { callId: 'pending', otherUserId: callerIdToCheck });
+
                 // We log the call in DB as 'initiated'
-                const call = await initiateCall(callerId, receiverId, callType);
+                const call = await initiateCall(callerIdToCheck, receiverId, callType);
+
+                // Update active call metadata with the saved call record ID
+                setActiveCall(callerIdToCheck, { callId: call._id, otherUserId: receiverId });
+                setActiveCall(receiverId, { callId: call._id, otherUserId: callerIdToCheck });
+
+                // Emit confirmation to caller so they can record the call ID locally
+                socket.emit('call-initiated', {
+                    callId: call._id,
+                    receiverId
+                });
 
                 io.to(receiverSocketId).emit('incoming-call', {
-                    callerId,
+                    callerId: callerIdToCheck,
                     callType,
                     callId: call._id
                 });
@@ -35,6 +51,9 @@ export const setupCallSockets = (io) => {
 
             } catch (error) {
                 console.error("Error in call-user:", error);
+                const callerIdToCheck = callerId || (socket.user && socket.user.id);
+                removeActiveCall(callerIdToCheck);
+                removeActiveCall(receiverId);
             }
         });
 
@@ -101,13 +120,14 @@ export const setupCallSockets = (io) => {
 
         // 7. End Call
         socket.on('end-call', async ({ callId, otherUserId, userId }) => {
-            console.log(`[CALL SIGNAL] end-call: User ${userId} ended call with ${otherUserId}`);
+            const currentUserId = userId || (socket.user && socket.user.id);
+            console.log(`[CALL SIGNAL] end-call: User ${currentUserId} ended call with ${otherUserId}`);
             try {
-                if (callId) {
+                if (callId && callId !== 'pending') {
                     await endCall(callId);
                 }
 
-                if (userId) removeActiveCall(userId);
+                if (currentUserId) removeActiveCall(currentUserId);
                 if (otherUserId) removeActiveCall(otherUserId);
 
                 const otherSocketId = getOnlineUserSocketId(otherUserId);
